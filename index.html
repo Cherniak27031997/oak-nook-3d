@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Дитяча v2 — 3D-модель кімнати</title>
+<style>
+ html,body{margin:0;height:100%;overflow:hidden;background:#efe9e1;font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;color:#3b2f2f;-webkit-tap-highlight-color:transparent}
+ canvas{display:block;touch-action:none}
+ #top{position:absolute;left:0;right:0;top:0;padding:10px 12px 6px;background:linear-gradient(#efe9e1ee,#efe9e100);pointer-events:none}
+ #top h1{margin:0;font-size:18px;font-weight:800} #top p{margin:2px 0 0;font-size:12.5px;color:#6d5d5d}
+ #bar{position:absolute;left:0;right:0;bottom:0;padding:8px 8px calc(8px + env(safe-area-inset-bottom));display:flex;flex-wrap:wrap;gap:6px;justify-content:center;background:linear-gradient(#efe9e100,#efe9e1f2 35%)}
+ button{border:0;border-radius:18px;padding:9px 13px;font-size:14px;font-weight:700;background:#fff;color:#3b2f2f;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+ button.on{background:#c9707f;color:#fff}
+ #seg{display:flex;border-radius:18px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.15)} #seg button{border-radius:0;box-shadow:none}
+ #info{position:absolute;left:10px;right:10px;bottom:118px;max-width:430px;margin:auto;background:#fffdfb;border-radius:14px;padding:12px 14px;box-shadow:0 6px 24px rgba(0,0,0,.2);display:none;font-size:14px;line-height:1.4}
+ #info b{font-size:16px} #info .p{font-size:18px;font-weight:800;color:#b8475a;margin:4px 0} #info a{color:#2f6fb0} #info .x{float:right;font-size:20px;line-height:1;color:#999;cursor:pointer}
+ #info .z{display:inline-block;font-size:11px;font-weight:800;padding:2px 7px;border-radius:9px;color:#fff;margin-bottom:4px}
+ #tot{position:absolute;right:10px;top:62px;background:#fffdfbe6;border-radius:12px;padding:8px 11px;font-size:12.5px;line-height:1.45;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+ #tot b{color:#b8475a}
+ .lb{position:absolute;transform:translate(-50%,-50%);background:rgba(255,255,255,.9);font-size:11.5px;font-weight:800;padding:3px 7px;border-radius:8px;border-left:4px solid var(--c);white-space:nowrap;pointer-events:none;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+ #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+ body.fly #top,body.fly #bar,body.fly #tot,body.fly #info,body.fly #hint{display:none}
+ #cap{position:absolute;left:40px;bottom:40px;font-size:40px;font-weight:800;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.55);display:none}
+ body.fly #cap{display:block}
+ #hint{position:absolute;left:0;right:0;top:48px;text-align:center;font-size:12px;color:#8a7a7a;pointer-events:none}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+</head><body>
+<div id="top"><h1>Дитяча v2 — 3D за LiDAR-скануванням</h1><p>6,21 × 3,57 м · 19,7 м² · стеля 2,64 м · тапни на меблі — ціна й посилання</p></div>
+<div id="hint">крути одним пальцем · масштаб двома</div>
+<div id="tot"></div>
+<div id="labels"></div>
+<div id="info"></div>
+<div id="cap"></div>
+<div id="bar">
+ <div id="seg"><button id="bBefore">До</button><button id="bAfter" class="on">Після</button></div>
+ <button data-v="iso" class="on">3D</button><button data-v="top">Вид зверху</button><button data-v="entry">Від входу</button><button data-v="window">Від вікна</button><button id="bLab" class="on">Підписи</button>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const L = {"_note": "Координати плану в метрах: x — від вікна (ліва коротка стіна) вправо до входу; y — від верхньої довгої стіни (ТВ) вниз. Джерело: LiDAR ~/room-design/plan_2d_labeled.png", "H": 2.64, "room": [[0, 0], [6.21, 0], [6.21, 1.6], [5.56, 1.6], [4.32, 3.57], [0, 3.57]], "window": {"wall": "x0", "y0": 0.08, "y1": 3.49, "sill": 0.8, "top": 2.45}, "entrance": {"wall": "x6.21", "y0": 0.35, "y1": 1.25, "hinge": "y1"}, "wardrobe_door": {"t0": 0.28, "t1": 0.62, "hinge": "t1", "w": 0.8}, "ac": {"x0": 0.1, "x1": 0.95, "y": 3.57, "z0": 2.2, "z1": 2.5}, "items": [{"key": "desk", "label": "Парта", "x0": 0.05, "x1": 0.6, "y0": 2.05, "y1": 3.05, "h": 0.72, "color": "#f4f1ec", "zone": "kid"}, {"key": "chair", "label": "Стілець", "x0": 0.66, "x1": 1.06, "y0": 2.35, "y1": 2.75, "h": 0.45, "color": "#e8b4bc", "zone": "kid"}, {"key": "shelving", "label": "KALLAX 147×39 (іграшки)", "x0": 0.05, "x1": 0.44, "y0": 0.12, "y1": 1.59, "h": 0.77, "color": "#ffffff", "zone": "kid"}, {"key": "bed", "label": "Ліжко-будиночок 90×200", "x0": 1.26, "x1": 2.22, "y0": 1.51, "y1": 3.57, "h": 0.45, "color": "#f1d4d8", "zone": "kid", "headboard": "y1"}, {"key": "nightstand", "label": "Тумба", "x0": 0.84, "x1": 1.22, "y0": 3.2, "y1": 3.55, "h": 0.45, "color": "#ffffff", "zone": "kid"}, {"key": "partition", "label": "Рейкова перегородка 1,8 м", "x0": 2.3, "x1": 2.34, "y0": 1.77, "y1": 3.57, "h": 2.64, "color": "#d9b98c", "zone": "slats", "slats": "y"}, {"key": "slat_wall", "label": "Рейкові панелі 2,4 м", "x0": 0.85, "x1": 3.25, "y0": 0.0, "y1": 0.02, "h": 2.64, "color": "#d9b98c", "zone": "slats", "slats": "x"}, {"key": "dresser", "label": "Комод-тумба 180×38", "x0": 0.75, "x1": 2.55, "y0": 0.02, "y1": 0.4, "h": 0.5, "color": "#ffffff", "zone": "storage"}, {"key": "tv", "label": "ТВ", "x0": 1.05, "x1": 2.25, "y0": 0.02, "y1": 0.06, "z0": 1.05, "h": 1.75, "color": "#1b1b1b", "zone": "storage"}, {"key": "sofa", "label": "Диван-ліжко 190×92", "x0": 2.38, "x1": 4.28, "y0": 2.65, "y1": 3.57, "h": 0.82, "color": "#b9bcc0", "zone": "guest", "unfold_y0": 2.07}, {"key": "coffee_table", "label": "Столик Ø60", "cx": 3.33, "cy": 2.05, "r": 0.3, "h": 0.45, "color": "#c9a45c", "zone": "guest"}, {"key": "rug", "label": "Килим 160×230", "x0": 2.38, "x1": 4.68, "y0": 1.2, "y1": 2.8, "h": 0.01, "color": "#c7c7c9", "zone": "guest", "flat": true}, {"key": "mirror", "label": "Дзеркало LED 50×160", "t0": 0.03, "t1": 0.25, "z0": 0.3, "h": 1.9, "color": "#dfe8ee", "zone": "storage", "on": "diag"}, {"key": "front_shelves", "label": "Фронтальні полиці", "x0": 0.62, "x1": 1.22, "y0": 3.45, "y1": 3.57, "z0": 1.0, "h": 1.65, "color": "#ffffff", "zone": "kid", "wall": true}, {"key": "toy_net", "label": "Сітка для м'яких іграшок", "x0": 0.02, "x1": 0.7, "y0": 0.02, "y1": 0.7, "z0": 1.35, "z1": 1.95, "h": 1.95, "color": "#ffffff", "zone": "kid", "wall": true}], "spots": [[0.9, 1.0], [1.8, 1.0], [2.9, 1.0], [4.0, 1.0], [5.2, 0.8], [1.2, 2.6], [3.3, 2.2], [4.4, 2.6]], "sconces": [{"x": 3.33, "y": 3.57, "z": 1.6}, {"x": 1.74, "y": 3.57, "z": 1.3}]};
+const P = {"bed": {"title": "Ліжко-будиночок 90×200 + матрац + білизна", "zone": "ДИТЯЧА", "color": "#d98c9a", "mid": 17389, "econ": 9418, "comf": 25264, "items": [{"name": "Ліжко 90×200 з м'яким узголів'ям", "model": "Шик Галичина «Кліо» 90×200, бежевий", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/356561241/p356561241/", "price": 9858}, {"name": "Матрац 90×200", "model": "MatroLuxe Helix 90×200", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/matrats-ortopedychnyi-helix-matroluxe-90x200-sm.html", "price": 5231}, {"name": "Постільна білизна пудрова ×2", "model": "ITALY Antina, полуторний 150×210", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/584693887/p584693887/", "price": 2300}]}, "nightstand": {"title": "Тумба + нічник", "zone": "ДИТЯЧА", "color": "#d98c9a", "mid": 1480, "econ": 1023, "comf": 3997, "items": [{"name": "Тумба приліжкова біла", "model": "Меблі-Сервіс «Бруклін» 2Ш, білий", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/536688994/p536688994/", "price": 1134}, {"name": "Нічник", "model": "Ledvance Nightlux Touch Rabbit RGBW", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/nochnik-ledvance-nightlux-touch-led-2-5-vt-belyy-rabbit-usb-rgbw.html", "price": 346}]}, "desk": {"title": "Парта «на вріст» + стілець + лампа", "zone": "ДИТЯЧА", "color": "#d98c9a", "mid": 10185, "econ": 4049, "comf": 11539, "items": [{"name": "Парта + стілець, що ростуть", "model": "Mealux Wave Pink (BD-31 PN)", "store": "Mealux (онлайн, НП)", "url": "https://mealux.ua/product/komplekt-mealux-wave-pink/", "price": 8490}, {"name": "Настільна LED-лампа", "model": "Baseus Smart Eye (DGZG-02)", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/458585709/p458585709/", "price": 1695}]}, "chair": {"title": "Парта «на вріст» + стілець + лампа", "zone": "ДИТЯЧА", "color": "#d98c9a", "mid": 10185, "econ": 4049, "comf": 11539, "items": [{"name": "Парта + стілець, що ростуть", "model": "Mealux Wave Pink (BD-31 PN)", "store": "Mealux (онлайн, НП)", "url": "https://mealux.ua/product/komplekt-mealux-wave-pink/", "price": 8490}, {"name": "Настільна LED-лампа", "model": "Baseus Smart Eye (DGZG-02)", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/458585709/p458585709/", "price": 1695}]}, "shelving": {"title": "Стелаж для іграшок з кошиками", "zone": "ЗБЕРІГАННЯ", "color": "#7aa0b8", "mid": 6097, "econ": 3997, "comf": 9849, "items": [{"name": "Білий відкритий стелаж + кошики", "model": "KALLAX 802.758.87 + DRÖNA 305.778.06", "store": "IKEA-реселери: Homezone + Doloto (онлайн, НП)", "url": "https://homezone.com.ua/ua/ikea-80275887", "price": 6097}]}, "partition": {"title": "Рейкова перегородка підлога–стеля", "zone": "РЕЙКИ", "color": "#c8a06a", "mid": 10126, "econ": 5940, "comf": 21529, "items": [{"name": "Рейки для перегородки (~1,8 м × 2,64 м)", "model": "Наш Ліс, сухий цільноламельний, 20×40×3000, ясен + лак Lotus напівмат 1 л ×2", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру)", "url": "https://epicentrk.ua/ua/shop/mplc-brus-suhij-cil-nolamel-nij-nas-lis-20h40h3000-mm-asen-1f0ed666-f8e8-68d8-91bd-5ff53672525a.html", "price": 6144}, {"name": "Монтаж перегородки + рейкової стіни (майстер)", "model": "Перегородка 4,75 м² + рейкова стіна 2,4 м ≈6,3 м²", "store": "Майстер, Хмельницький (rabotniki.ua)", "url": "https://www.rabotniki.ua/uk/price/montazh-derevyannoy-vagonki-na-stenu/hmelnitskiy", "price": 3982}]}, "slat_wall": {"title": "Рейкова стіна за ТВ", "zone": "РЕЙКИ", "color": "#c8a06a", "mid": 13026, "econ": 9780, "comf": 23260, "items": [{"name": "Рейкові панелі на стіну за ТВ", "model": "ПлиТТоргСервіс 17×600×2750 мм, дуб, 1,65 м²/шт", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/akustychna-panel-stinova-17kh600kh2750-mm-1-65-m-kv.html", "price": 12720}, {"name": "Приховування кабелів ТВ", "model": "Expert 25×40 мм, 2 м", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/kanal-kabelnyy-expert-25x40-mm-2-m-belyy.html", "price": 306}]}, "tv": {"title": "ТВ (лишається) + сховані кабелі", "zone": "ЗБЕРІГАННЯ", "color": "#7aa0b8", "mid": 306, "econ": 192, "comf": 1000, "items": [{"name": "Приховування кабелів ТВ", "model": "Expert 25×40 мм, 2 м", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/kanal-kabelnyy-expert-25x40-mm-2-m-belyy.html", "price": 306}]}, "dresser": {"title": "Низький білий комод 180 см під ТВ", "zone": "ЗБЕРІГАННЯ", "color": "#7aa0b8", "mid": 6041, "econ": 3440, "comf": 13600, "items": [{"name": "Низький довгий білий комод / ТВ-тумба", "model": "Doros «Рон 4» 180×38×50 см", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/446722550/p446722550/", "price": 6041}]}, "sofa": {"title": "Сірий диван-ліжко для гостей + подушки + набір для гостя", "zone": "ГОСТІ", "color": "#8f959c", "mid": 16209, "econ": 9943, "comf": 23377, "items": [{"name": "Сірий диван-ліжко", "model": "JYSK PARADIS св.сірий", "store": "JYSK (Трудова 6 / Кам'янецька 21 / Свободи 73)", "url": "https://jysk.ua/vitalnya/divani-rozkladni/dyvan-rozkladnyy-paradis-svsiryy", "price": 12999}, {"name": "Декоративні подушки пудрові ×4", "model": "Комплект 2 шт (vk014)", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/317994544/p317994544/", "price": 1580}, {"name": "Ковдра + подушка для гостя", "model": "ARCLOUD 4 Seasons 350 г/м² + Billerbeck «Міла»", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру) + Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/mplc-kovdra-arcloud-4-seasons-polutorna-140h205-sm-350-g-m2-white-1ef137c7-2941-63a6-b8a5-c1ec13cd8b58.html", "price": 1630}]}, "coffee_table": {"title": "Круглий журнальний столик", "zone": "ГОСТІ", "color": "#8f959c", "mid": 5868, "econ": 2077, "comf": 7945, "items": [{"name": "Круглий журнальний столик скло + золото", "model": "Leobert Oskar", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/497522059/p497522059/", "price": 5868}]}, "rug": {"title": "Сірий килим з марокканським орнаментом", "zone": "ГОСТІ", "color": "#8f959c", "mid": 6435, "econ": 2679, "comf": 10148, "items": [{"name": "Сірий килим з марокканським/геометричним орнаментом", "model": "Almina 148401 Light Grey, 160×230", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру)", "url": "https://epicentrk.ua/ua/shop/mplc-kilim-bezvorsovij-almina-148401-160x230-sm-light-grey-94131623-1ee16b45-d71a-6d3c-9ffe-871fc13d4a7f.html", "price": 6435}]}, "window_textile": {"title": "Тюль у підлогу + штори + карниз", "zone": "ВІКНО", "color": "#4a90d9", "mid": 4968, "econ": 2697, "comf": 10573, "items": [{"name": "Тюль білий у підлогу (~300×260)", "model": "Lux Portiery TL3712 (підшити до ~258 см)", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру)", "url": "https://epicentrk.ua/ua/shop/mplc-tul-lux-portiery-l-on-lajt-300h270-sm-bilij-tl3712-1eedf155-263c-6dc4-9301-5b1bb7aac15e.html", "price": 1199}, {"name": "Штори блекаут грейж/беж, 2 полотна", "model": "Pivdenne 80003-200", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру)", "url": "https://epicentrk.ua/ua/shop/mplc-shtori-pivdenne-blekaut-200kh270-sm-1-sht-svitlo-bezhevii-80003-200-1eb9eddc-75ab-608c-a6d5-d972a0784fb5.html", "price": 2310}, {"name": "Стельовий карниз ~3 м + монтаж", "model": "Quadrum DS подвійний, 300 см, білий", "store": "Епіцентр (маркетплейс, доставка/самовивіз з Епіцентру)", "url": "https://epicentrk.ua/ua/shop/mplc-stel-ovii-karniz-quadrum-ds-podviinii-posilenii-alyuminievii-300-sm-bilii-1ec87f10-cd3f-672a-8ba0-6fcd6dab466d.html", "price": 1459}]}, "led": {"title": "LED-контур стелі (стрічка + профіль + блок + монтаж)", "zone": "СВІТЛО", "color": "#e0b44a", "mid": 14744, "econ": 9048, "comf": 26019, "items": [{"name": "LED-стрічка 24 В тепла, ~20 м", "model": "Eurolamp LED/ROLL-5m/3000K(480), 10 Вт, IP20, 24 В", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/strichka-svitlodiodna-eurolamp-10-vt-ip20-24-v-teplyi-led-roll-5m-3000k-480.html", "price": 3500}, {"name": "Профіль / карниз для прихованого контуру ~20 м", "model": "TIS ЛСУ кутовий, 2 м", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/profil-alyuminievyy-uglovoy-lsu-tis-dlya-led-lenty-200-sm.html", "price": 2500}, {"name": "Блок живлення 24 В", "model": "Mean Well LRS-200-24, 24 В, 8,8 А", "store": "Rozetka (онлайн, НП / пункти видачі)", "url": "https://rozetka.com.ua/ua/571692718/p571692718/", "price": 998}, {"name": "Монтаж підсвітки + точкових + бра (електрик)", "model": "LED у профілі/коробі 19 м × 258 + точковий 8 × 273 + бра 2 × 180 + блок живлення 300", "store": "Майстри, Хмельницький (rabotniki.ua + Римейк)", "url": "https://www.rabotniki.ua/uk/price/montazh-lenty-led-osvescheniya-korobe/hmelnitskiy", "price": 7746}]}, "spots": {"title": "Точкові світильники ×8", "zone": "СВІТЛО", "color": "#e0b44a", "mid": 2176, "econ": 480, "comf": 4776, "items": [{"name": "Точкові вбудовані світильники ×8", "model": "Sensio Tokyo GX53 білий + лампа Osram GX53 11 Вт 3000K", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/svitylnyk-tochkovyi-sensio-tokyo-gx53-bilyi-lh-gx53-white-q1.html", "price": 2176}]}, "sconce": {"title": "Бра ×2", "zone": "СВІТЛО", "color": "#e0b44a", "mid": 1460, "econ": 1360, "comf": 2200, "items": [{"name": "Бра ×2", "model": "ARDERO BL2010-2 BELL E14 (акція; лампи E14 окремо)", "store": "Епіцентр (вул. Зарічанська, 11/4)", "url": "https://epicentrk.ua/ua/shop/bra-ardero-bl2010-2-bell-e14-antychna-latun-81091.html", "price": 1460}]}};
+const TOT = {"econ": 65931, "mid": 116204, "comf": 194076};
+const q = new URLSearchParams(location.search), FLY = q.has('fly');
+if (FLY) document.body.classList.add('fly');
+const Hh = L.H, R = L.room, D = R[3], E = R[4];
+const diagPt = t => [D[0]+(E[0]-D[0])*t, D[1]+(E[1]-D[1])*t];
+const diagAng = -Math.atan2(E[1]-D[1], E[0]-D[0]);
+const ZC = {kid:'#d98c9a', guest:'#8f959c', slats:'#c8a06a', storage:'#7aa0b8', light:'#e0b44a', window:'#4a90d9'};
+const fmt = n => n.toLocaleString('uk-UA').replace(/,/g,' ');
+document.getElementById('tot').innerHTML = `Кошторис v2 (Хмельницький):<br>економ <b>${fmt(TOT.econ)}</b> грн<br>середній <b>${fmt(TOT.mid)}</b> грн<br>комфорт <b>${fmt(TOT.comf)}</b> грн`;
+
+const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:FLY});
+renderer.setPixelRatio(FLY ? 1 : Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.prepend(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#efe9e1');
+const cam = new THREE.PerspectiveCamera(50, 1, 0.05, 80);
+const ctr = new OrbitControls(cam, renderer.domElement); ctr.enableDamping = true; ctr.maxPolarAngle = Math.PI*0.495; ctr.minDistance = 0.3; ctr.maxDistance = 16;
+function resize(){ const w = FLY?1920:innerWidth, h = FLY?1080:innerHeight; renderer.setSize(w,h,false); renderer.domElement.style.width=w+'px'; renderer.domElement.style.height=h+'px'; cam.aspect=w/h; cam.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+const M = (c,o={}) => new THREE.MeshStandardMaterial({color:c, roughness:.8, ...o});
+const tex = (w,h,fn,rep=[1,1]) => { const c=document.createElement('canvas'); c.width=w; c.height=h; fn(c.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(...rep); t.anisotropy=8; return t; };
+let G = null;      // група, в яку зараз додаємо
+const box = (x0,x1,y0,y1,z0,z1,mat,cast=true) => { const m=new THREE.Mesh(new THREE.BoxGeometry(Math.max(x1-x0,1e-3), Math.max(z1-z0,1e-3), Math.max(y1-y0,1e-3)), mat);
+  m.position.set((x0+x1)/2,(z0+z1)/2,(y0+y1)/2); m.castShadow=cast; m.receiveShadow=true; G.add(m); return m; };
+const group = (key, parent) => { const g = new THREE.Group(); g.userData.key = key; (parent||scene).add(g); return g; };
+
+// ---------- ОБОЛОНКА КІМНАТИ (спільна) ----------
+const shell = group(null); G = shell;
+const oak = tex(512,512,(g,w,h)=>{ for(let i=0;i<4;i++){ const y=i*h/4; g.fillStyle=['#b98d5f','#c29668','#b48859','#bd9163'][i]; g.fillRect(0,y,w,h/4);
+  for(let k=0;k<40;k++){g.strokeStyle='rgba(90,60,30,.08)';g.beginPath();const yy=y+Math.random()*h/4;g.moveTo(0,yy);g.lineTo(w,yy+Math.random()*4-2);g.stroke();}
+  g.fillStyle='rgba(60,40,20,.35)'; g.fillRect(0,y,w,1.5); g.fillRect((i*137)%w,y,1.5,h/4);} });
+const shape = new THREE.Shape(R.map(([x,y])=>new THREE.Vector2(x,y)));
+{ const f = new THREE.Mesh(new THREE.ShapeGeometry(shape), M('#fff',{map:oak, roughness:.55, side:THREE.DoubleSide})); f.rotation.x=Math.PI/2; f.receiveShadow=true;
+  const uv=f.geometry.attributes.uv, p=f.geometry.attributes.position; for(let i=0;i<uv.count;i++) uv.setXY(i,p.getX(i)/1.2,p.getY(i)/1.2); shell.add(f); }
+// стіни: кожна стіна — окремий об'єкт, щоб ховати ту, що між камерою й кімнатою
+const walls = [];
+const wallMatA = M('#e9e2d7',{roughness:.95}), wallMatB = M('#dcdad6',{roughness:.95});
+function wallSeg(a,b,opts={}){ const dx=b[0]-a[0], dy=b[1]-a[1], len=Math.hypot(dx,dy), T=0.1, nx=dy/len, ny=-dx/len;
+  const g = new THREE.Group(); g.userData.n=[nx,ny]; g.userData.c=[(a[0]+b[0])/2,(a[1]+b[1])/2]; shell.add(g); walls.push(g);
+  const add = (u0,u1,z0,z1) => { const m=new THREE.Mesh(new THREE.BoxGeometry(u1-u0,z1-z0,T), wallMatA); m.userData.wall=true;
+    const um=(u0+u1)/2; m.position.set(a[0]+dx/len*um+nx*T/2,(z0+z1)/2,a[1]+dy/len*um+ny*T/2); m.rotation.y=-Math.atan2(dy,dx); m.receiveShadow=true; g.add(m); };
+  if (opts.hole){ const [u0,u1,z1]=opts.hole; add(-T/2,u0,0,Hh); add(u1,len+T/2,0,Hh); add(u0,u1,z1,Hh); } else add(-T/2,len+T/2,0,Hh);
+  return g; }
+wallSeg(R[0],R[1]); wallSeg([6.21,0],[6.21,1.6],{hole:[L.entrance.y0,L.entrance.y1,2.05]}); wallSeg(R[2],R[3]); wallSeg(R[3],R[4]); wallSeg(R[4],R[5]);
+{ // ліва стіна з вікном
+  const g=new THREE.Group(); g.userData.n=[-1,0]; g.userData.c=[0,1.785]; shell.add(g); walls.push(g); G=g; const w=L.window, fr=M('#f7f7f5',{roughness:.4});
+  box(-0.1,0,-0.05,3.62,0,w.sill,wallMatA); box(-0.1,0,-0.05,3.62,w.top,Hh,wallMatA); box(-0.1,0,-0.05,w.y0,w.sill,w.top,wallMatA); box(-0.1,0,w.y1,3.62,w.sill,w.top,wallMatA);
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(w.y1-w.y0,w.top-w.sill),new THREE.MeshStandardMaterial({color:'#cfe6f7',emissive:'#bcdcf5',emissiveIntensity:.8,transparent:true,opacity:.6,side:THREE.DoubleSide}));
+  gl.position.set(-0.05,(w.sill+w.top)/2,(w.y0+w.y1)/2); gl.rotation.y=Math.PI/2; g.add(gl);
+  for (const yy of [w.y0,w.y0+(w.y1-w.y0)/3,w.y0+2*(w.y1-w.y0)/3,w.y1]) box(-0.08,0,yy-0.03,yy+0.03,w.sill,w.top,fr);
+  box(-0.08,0.02,w.y0,w.y1,w.sill-0.03,w.sill+0.02,fr); box(-0.08,0,w.y0,w.y1,w.top-0.03,w.top+0.02,fr); G=shell; }
+// двері входу (відчинені в коридор — показуємо проріз з рамкою)
+{ const e=L.entrance, fr=M('#f3f1ec',{roughness:.5}); box(6.2,6.32,e.y0-0.05,e.y0,0,2.1,fr); box(6.2,6.32,e.y1,e.y1+0.05,0,2.1,fr); box(6.2,6.32,e.y0-0.05,e.y1+0.05,2.05,2.1,fr); }
+// двері гардероба в скосі
+{ const w=L.wardrobe_door, A=diagPt(w.t0), B=diagPt(w.t1), len=Math.hypot(A[0]-B[0],A[1]-B[1]);
+  const gw = group('wardrobe'); G=gw; const m=new THREE.Mesh(new THREE.BoxGeometry(len,2.3,0.025),M('#ece6dc',{roughness:.6})); m.position.set((A[0]+B[0])/2-0.01,1.15,(A[1]+B[1])/2-0.008); m.rotation.y=diagAng; gw.add(m);
+  const hd=diagPt(w.t0+0.05); box(hd[0]-0.035,hd[0]-0.005,hd[1]-0.05,hd[1]-0.02,0.98,1.18,M('#111')); G=shell; }
+// кондиціонер
+{ const a=L.ac; box(a.x0,a.x1,a.y-0.22,a.y,a.z0,a.z1,M('#fbfbfb',{roughness:.3})); }
+// стеля (лише для видів «від входу/вікна»)
+const ceil = new THREE.Mesh(new THREE.ShapeGeometry(shape), M('#fbfaf8',{side:THREE.DoubleSide})); ceil.rotation.x=Math.PI/2; ceil.position.y=Hh; ceil.visible=false; shell.add(ceil);
+
+// ---------- ПІСЛЯ ----------
+const AFTER = group(null); G = AFTER;
+const oakM = M('#d6b48a',{roughness:.6}), whiteM = M('#fbfaf7',{roughness:.45});
+const I = Object.fromEntries(L.items.map(i=>[i.key,i]));
+function inG(key, fn){ const prev=G; G=group(key, AFTER); fn(); G=prev; }
+// акцентна фарба стін (беж) — задається матеріалом стін при перемиканні
+for (const it of L.items) {
+  const k = it.key;
+  inG(k, () => {
+  if (k==='rug') { const rugT = tex(512,360,(g,w,h)=>{ g.fillStyle='#bfc0c3'; g.fillRect(0,0,w,h); g.strokeStyle='#f1f1f1'; g.lineWidth=5;
+      for(let x=-40;x<w+40;x+=64) for(let y=-40;y<h+40;y+=64){ g.beginPath(); g.moveTo(x,y+32); g.quadraticCurveTo(x+16,y,x+32,y+32); g.quadraticCurveTo(x+48,y+64,x+64,y+32); g.stroke(); g.beginPath(); g.moveTo(x+32,y); g.quadraticCurveTo(x+64,y+16,x+32,y+32); g.quadraticCurveTo(x,y+48,x+32,y+64); g.stroke(); }
+      g.strokeStyle='#9d9fa3'; g.lineWidth=14; g.strokeRect(0,0,w,h); });
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(it.x1-it.x0,it.y1-it.y0),M('#fff',{map:rugT,roughness:1})); m.rotation.x=-Math.PI/2; m.position.set((it.x0+it.x1)/2,0.008,(it.y0+it.y1)/2); m.receiveShadow=true; G.add(m); return; }
+  if (k==='partition' || k==='slat_wall') { const vert=it.slats==='y', len=vert?it.y1-it.y0:it.x1-it.x0, n=Math.round(len/(vert?0.082:0.06));
+    if (!vert) box(it.x0,it.x1,0,0.012,0,Hh,M('#3a2f27'));
+    for (let i=0;i<n;i++){ const s=(i+0.5)*len/n; if (vert) box(it.x0,it.x1,it.y0+s-0.02,it.y0+s+0.02,0,Hh,oakM); else box(it.x0+s-0.014,it.x0+s+0.014,0.012,0.032,0,Hh,oakM); }
+    if (vert) box(it.x0-0.005,it.x1+0.005,it.y0,it.y1,Hh-0.04,Hh,oakM); return; }
+  if (k==='tv') { box(it.x0,it.x1,0.035,0.07,it.z0,it.h,M('#111',{roughness:.2,metalness:.3})); return; }
+  if (k==='mirror') { const A=diagPt(it.t0),B=diagPt(it.t1),len=Math.hypot(A[0]-B[0],A[1]-B[1]);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(len,it.h,0.03),new THREE.MeshStandardMaterial({color:'#e6eef3',roughness:.05,metalness:.9,emissive:'#fff3d6',emissiveIntensity:.25}));
+    m.position.set((A[0]+B[0])/2-0.03,it.z0+it.h/2,(A[1]+B[1])/2-0.02); m.rotation.y=diagAng; G.add(m); return; }
+  if (k==='coffee_table') { const top=new THREE.Mesh(new THREE.CylinderGeometry(it.r,it.r,0.02,48),new THREE.MeshStandardMaterial({color:'#e8f1f3',transparent:true,opacity:.55,roughness:.05}));
+    top.position.set(it.cx,it.h,it.cy); G.add(top); const gold=M('#c9a45c',{metalness:.9,roughness:.25});
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(it.r,0.012,8,48),gold); ring.rotation.x=Math.PI/2; ring.position.set(it.cx,it.h-0.01,it.cy); G.add(ring); const r2=ring.clone(); r2.position.y=0.02; G.add(r2);
+    for (let a=0;a<4;a++){ const x=it.cx+Math.cos(a*Math.PI/2+.6)*it.r, y=it.cy+Math.sin(a*Math.PI/2+.6)*it.r; box(x-0.01,x+0.01,y-0.01,y+0.01,0.02,it.h,gold); } return; }
+  if (k==='bed') { // ліжко-будиночок 90×200 (Монтессорі): низький каркас + дах-рамка
+    const wood=M('#f3eee6',{roughness:.5});
+    box(it.x0,it.x1,it.y0,it.y1,0.05,0.22,wood); box(it.x0+0.03,it.x1-0.03,it.y0+0.03,it.y1-0.03,0.22,0.38,M('#ffffff'));
+    box(it.x0+0.01,it.x1-0.01,it.y0+0.02,it.y1-0.55,0.37,0.43,M('#eab6bf',{roughness:1})); box(it.x0+0.12,it.x1-0.12,it.y1-0.48,it.y1-0.12,0.38,0.5,M('#f7e4e7',{roughness:1}));
+    box(it.x0+0.05,it.x1-0.35,it.y0+0.12,it.y0+0.55,0.43,0.46,M('#d98c9a',{roughness:1}));
+    const apexH=1.75, wallH=1.2, cx=(it.x0+it.x1)/2, hw=(it.x1-it.x0)/2;
+    for (const y of [it.y0+0.02, it.y1-0.02]) { box(it.x0,it.x0+0.04,y-0.02,y+0.02,0,wallH,wood); box(it.x1-0.04,it.x1,y-0.02,y+0.02,0,wallH,wood);
+      for (const s of [-1,1]) { const len=Math.hypot(hw,apexH-wallH)+0.03, m=new THREE.Mesh(new THREE.BoxGeometry(len,0.04,0.04),wood);
+        m.position.set(cx+s*hw/2,(wallH+apexH)/2,y); m.rotation.z=-s*Math.atan2(apexH-wallH,hw); m.castShadow=true; G.add(m); } }
+    box(cx-0.02,cx+0.02,it.y0,it.y1,apexH-0.02,apexH+0.02,wood); box(it.x0,it.x0+0.04,it.y0,it.y1,wallH-0.02,wallH+0.02,wood); box(it.x1-0.04,it.x1,it.y0,it.y1,wallH-0.02,wallH+0.02,wood);
+    box(it.x0,it.x0+0.03,it.y0+0.6,it.y1,0.22,0.36,wood);   // бортик
+    for (let i=0;i<12;i++){ const y=it.y0+0.1+i*(it.y1-it.y0-0.2)/11; const b=new THREE.Mesh(new THREE.SphereGeometry(0.018,8,6),new THREE.MeshBasicMaterial({color:'#ffe6a8'})); b.position.set(cx,apexH-0.05,y); G.add(b); }
+    return; }
+  if (k==='sofa') { const g=M('#b3b7bc',{roughness:1});
+    box(it.x0,it.x1,it.y0,it.y1,0.05,0.42,g); box(it.x0,it.x1,it.y1-0.22,it.y1,0.42,0.82,g);
+    box(it.x0,it.x0+0.14,it.y0,it.y1,0.42,0.62,g); box(it.x1-0.14,it.x1,it.y0,it.y1,0.42,0.62,g);
+    box(it.x0+0.15,(it.x0+it.x1)/2-0.01,it.y0+0.02,it.y1-0.22,0.42,0.5,g); box((it.x0+it.x1)/2+0.01,it.x1-0.15,it.y0+0.02,it.y1-0.22,0.42,0.5,g);
+    const pk=[M('#e7b3bb',{roughness:1}),M('#f1d3d6',{roughness:1}),M('#d99aa6',{roughness:1})];
+    [[it.x0+0.25,0],[it.x0+0.65,1],[it.x1-0.65,2],[it.x1-0.25,1]].forEach(([x,i])=>{ const c=box(x-0.2,x+0.2,it.y1-0.32,it.y1-0.2,0.5,0.88,pk[i]); c.rotation.x=-0.25; }); return; }
+  if (k==='dresser') { box(it.x0,it.x1,it.y0,it.y1,0.1,it.h,whiteM); for (let i=1;i<4;i++){ const x=it.x0+i*(it.x1-it.x0)/4; box(x-0.003,x+0.003,it.y1,it.y1+0.004,0.12,it.h-0.02,M('#d8d5cf')); }
+    const gold=M('#c9a45c'); box(it.x0+0.05,it.x0+0.08,it.y0+0.05,it.y0+0.08,0,0.1,gold); box(it.x1-0.08,it.x1-0.05,it.y0+0.05,it.y0+0.08,0,0.1,gold);
+    box(it.x0+0.2,it.x0+0.32,0.12,0.24,it.h,it.h+0.3,M('#e9dcc9')); box(it.x1-0.4,it.x1-0.22,0.1,0.3,it.h,it.h+0.16,M('#f1c9cf',{roughness:1})); return; }
+  if (k==='shelving') { box(it.x0,it.x1,it.y0,it.y1,0,it.h,whiteM); const cols=['#d8c3a5','#e9b9c1','#d8c3a5','#cdd3d8','#e9b9c1','#d8c3a5','#cdd3d8','#e9b9c1']; let n=0;
+    for (let r=0;r<2;r++) for (let c=0;c<4;c++){ const y0=it.y0+0.02+c*(it.y1-it.y0-0.04)/4, y1=y0+(it.y1-it.y0-0.04)/4-0.02, z0=0.03+r*0.37; box(it.x1-0.005,it.x1+0.005,y0+0.01,y1-0.01,z0+0.01,z0+0.33,M(cols[n++],{roughness:1})); }
+    [[0.35,'#f2b8c4'],[0.8,'#fff0c9'],[1.2,'#cfe3ef']].forEach(([y,c])=>{ const s=new THREE.Mesh(new THREE.SphereGeometry(0.09,16,12),M(c,{roughness:1})); s.position.set(it.x0+0.2,it.h+0.09,it.y0+y); s.castShadow=true; G.add(s); }); return; }
+  if (k==='desk') { box(it.x0,it.x1,it.y0,it.y1,it.h-0.03,it.h,whiteM); box(it.x0,it.x0+0.04,it.y0,it.y1,0,it.h,whiteM); box(it.x1-0.04,it.x1,it.y0,it.y1,0,it.h,whiteM);
+    box(it.x0+0.05,it.x0+0.2,it.y1-0.2,it.y1-0.06,it.h,it.h+0.38,M('#f4e1c6',{emissive:'#ffcf8a',emissiveIntensity:.5})); return; }
+  if (k==='chair') { box(it.x0,it.x1,it.y0,it.y1,0.4,0.45,M(it.color)); box(it.x1-0.04,it.x1,it.y0,it.y1,0.45,0.8,M(it.color));
+    for (const [x,y] of [[it.x0+.02,it.y0+.02],[it.x1-.04,it.y0+.02],[it.x0+.02,it.y1-.04],[it.x1-.04,it.y1-.04]]) box(x,x+0.02,y,y+0.02,0,0.4,whiteM); return; }
+  if (k==='front_shelves') { for (let r=0;r<3;r++){ const z=it.z0+r*0.3; box(it.x0,it.x1,it.y0,it.y1,z,z+0.02,whiteM); box(it.x0,it.x1,it.y0-0.005,it.y0+0.01,z,z+0.09,whiteM);
+      for (let b=0;b<4;b++){ const x=it.x0+0.05+b*(it.x1-it.x0-0.1)/4; box(x,x+0.1,it.y0+0.03,it.y0+0.05,z+0.02,z+0.24,M(['#f2b8c4','#a9cbe0','#f5d88e','#c8e0b5'][(b+r)%4])).rotation.x=0.12; } } return; }
+  if (k==='toy_net') { const pts=[new THREE.Vector3(it.x0,it.z1,it.y0),new THREE.Vector3(it.x1,it.z1,it.y0),new THREE.Vector3(it.x0,it.z1,it.y1),new THREE.Vector3((it.x0+it.x1)/3,it.z0,(it.y0+it.y1)/3)];
+    const geo=new THREE.BufferGeometry().setFromPoints([pts[0],pts[1],pts[3],pts[0],pts[2],pts[3],pts[1],pts[2],pts[3]]); geo.computeVertexNormals();
+    G.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:'#ffffff',transparent:true,opacity:.35,side:THREE.DoubleSide,wireframe:false})));
+    G.add(new THREE.LineSegments(new THREE.WireframeGeometry(geo),new THREE.LineBasicMaterial({color:'#e8c9cf'})));
+    [['#f2b8c4',0.2,0.15],['#d9c7a8',0.35,0.3],['#cfe3ef',0.18,0.4],['#fff0c9',0.42,0.12]].forEach(([c,a,b])=>{ const s=new THREE.Mesh(new THREE.SphereGeometry(0.075,14,10),M(c,{roughness:1})); s.position.set(it.x0+a,it.z0+0.2,it.y0+b); G.add(s); }); return; }
+  box(it.x0,it.x1,it.y0,it.y1,0,it.h,M(it.color));
+  });
+}
+// тюль і штори
+inG('window_textile', () => { const tul=new THREE.MeshStandardMaterial({color:'#ffffff',transparent:true,opacity:.5,side:THREE.DoubleSide,roughness:1});
+  const tg=new THREE.PlaneGeometry(3.45,Hh-0.06,120,1), pp=tg.attributes.position; for(let i=0;i<pp.count;i++) pp.setZ(i,Math.sin(pp.getX(i)*28)*0.025);
+  const tm=new THREE.Mesh(tg,tul); tm.rotation.y=Math.PI/2; tm.position.set(0.1,(Hh-0.06)/2,1.785); G.add(tm);
+  const cur=M('#cbbfae',{roughness:1}); box(0.12,0.2,0.04,0.42,0,Hh-0.06,cur); box(0.12,0.2,3.15,3.53,0,Hh-0.06,cur); });
+// бра
+inG('sconce', () => { for (const s of L.sconces){ const m=new THREE.Mesh(new THREE.SphereGeometry(0.08,24,16),new THREE.MeshStandardMaterial({color:'#fff5e0',emissive:'#ffd79a',emissiveIntensity:1.4})); m.position.set(s.x,s.z,s.y-0.1); G.add(m);
+  const pl=new THREE.PointLight('#ffcf8f',0.8,3.5,1.6); pl.position.set(s.x,s.z,s.y-0.25); G.add(pl); } });
+// LED-контур і точкові (у «Після» видно і без стелі: світна лінія по периметру під стелею)
+const ledG = group('led', AFTER), spotG = group('spots', AFTER);
+{ const inner = R.map(([x,y])=>[x+(3.1-x)*0.03, y+(1.8-y)*0.05]); const ledM=new THREE.MeshBasicMaterial({color:'#ffd98f'});
+  for (let i=0;i<inner.length;i++){ const a=inner[i], b=inner[(i+1)%inner.length], len=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    const m=new THREE.Mesh(new THREE.BoxGeometry(len,0.025,0.025),ledM); m.position.set((a[0]+b[0])/2,Hh-0.09,(a[1]+b[1])/2); m.rotation.y=-Math.atan2(b[1]-a[1],b[0]-a[0]); ledG.add(m); }
+  for (const [x,y] of L.spots){ const m=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.012,20),new THREE.MeshBasicMaterial({color:'#fff4d6'})); m.position.set(x,Hh-0.01,y); spotG.add(m);
+    const halo=new THREE.Mesh(new THREE.SphereGeometry(0.035,12,8),new THREE.MeshBasicMaterial({color:'#ffe9b0'})); halo.position.set(x,Hh-0.03,y); spotG.add(halo); } }
+
+// ---------- ДО (як зараз, за відео кімнати) ----------
+const BEFORE = group(null); G = BEFORE; BEFORE.visible = false;
+{ const grey=M('#8f8d8a',{roughness:1});
+  const g1=group('b_sofa',BEFORE); G=g1; box(1.0,3.0,2.7,3.55,0.05,0.42,grey); box(1.0,3.0,3.33,3.55,0.42,0.85,grey); box(1.0,1.14,2.7,3.55,0.42,0.62,grey); box(2.86,3.0,2.7,3.55,0.42,0.62,grey);
+  box(1.3,1.7,3.1,3.25,0.45,0.8,M('#e8e3d9',{roughness:1})); box(2.2,2.6,3.1,3.25,0.45,0.8,M('#c9b39d',{roughness:1}));
+  const g2=group('b_cubes',BEFORE); G=g2; box(1.0,2.4,0.02,0.4,0,0.95,M('#ffffff',{roughness:.5}));
+  const tc=['#e84a5f','#3aa0e0','#f5c13b','#5bbf6a','#b36be0','#ff8fb1']; for (let i=0;i<34;i++){ const x=1.05+((i*37)%130)/100, y=0.1+((i*53)%60)/100, z=0.95+((i*29)%40)/100; const s=new THREE.Mesh(new THREE.SphereGeometry(0.06+((i*7)%5)/100,10,8),M(tc[i%6],{roughness:1})); s.position.set(x,z,y); s.castShadow=true; G.add(s); }
+  const g3=group('b_tv',BEFORE); G=g3; box(1.05,2.25,0.035,0.07,1.05,1.75,M('#111',{roughness:.2}));
+  const g4=group('b_desk',BEFORE); G=g4; box(0.15,0.75,1.2,1.8,0.52,0.55,M('#e7d3b0')); box(0.15,0.2,1.2,1.8,0,0.52,M('#e7d3b0')); box(0.7,0.75,1.2,1.8,0,0.52,M('#e7d3b0'));
+  const g5=group('b_toys',BEFORE); G=g5; box(0.9,1.4,1.5,2.0,0,0.75,M('#f1f1f1')); box(2.6,2.95,0.5,0.9,0,0.9,M('#8a6a4a')); // коляска, мольберт
+  for (let i=0;i<22;i++){ const x=0.5+((i*71)%350)/100, y=0.6+((i*43)%190)/100; const s=new THREE.Mesh(new THREE.SphereGeometry(0.05+((i*3)%6)/100,10,8),M(tc[(i+2)%6],{roughness:1})); s.position.set(x,0.06,y); G.add(s); }
+  const g6=group('b_rug',BEFORE); G=g6; const rt=tex(512,512,(g,w,h)=>{ g.fillStyle='#ecebe7'; g.fillRect(0,0,w,h); g.strokeStyle='#b9b6af'; g.lineWidth=3; for(let i=0;i<14;i++){ g.beginPath(); g.moveTo(Math.random()*w,Math.random()*h); g.lineTo(Math.random()*w,Math.random()*h); g.stroke(); } });
+  const rug=new THREE.Mesh(new THREE.PlaneGeometry(2.0,2.9),M('#fff',{map:rt,roughness:1})); rug.rotation.x=-Math.PI/2; rug.position.set(2.2,0.008,1.6); rug.receiveShadow=true; G.add(rug);
+  const g7=group('b_curtain',BEFORE); G=g7; box(0.1,0.18,0.05,0.5,0,Hh-0.05,M('#8b7d72',{roughness:1})); box(0.1,0.18,3.05,3.5,0,Hh-0.05,M('#8b7d72',{roughness:1}));
+  const tul=new THREE.Mesh(new THREE.PlaneGeometry(3.4,2.4),new THREE.MeshStandardMaterial({color:'#fff',transparent:true,opacity:.4,side:THREE.DoubleSide})); tul.rotation.y=Math.PI/2; tul.position.set(0.08,1.4,1.78); G.add(tul);
+  const g8=group('b_lamp',BEFORE); G=g8; for (const [dx,dz] of [[0,0],[0.25,0.1],[-0.2,0.15],[0.1,-0.2]]){ const s=new THREE.Mesh(new THREE.SphereGeometry(0.07,14,10),new THREE.MeshStandardMaterial({color:'#fff',emissive:'#fff2d0',emissiveIntensity:.6})); s.position.set(2.0+dx,1.9+dz,3.5); G.add(s); }
+  G = shell; }
+const BEFORE_INFO = {b_sofa:['Старий сірий диван','стоїть уздовж довгої стіни біля вікна — у v2 тут ліжко-будиночок за рейками'],
+  b_cubes:['Стелаж-куби під ТВ','завалений іграшками — у v2 замість нього низький білий комод 180 см (іграшки всередину) + KALLAX біля вікна'],
+  b_tv:['ТВ','лишається на місці; у v2 — рейкова стіна світлого дуба, кабелі сховані'], b_desk:['Дитячий столик','у v2 — парта-трансформер «на вріст» біля вікна'],
+  b_toys:['Іграшки на підлозі, коляска, мольберт','у v2 — KALLAX з кошиками, фронтальні полиці, сітка для м\'яких'], b_rug:['Світлий килим','у v2 — сірий марокканський 160×230 у гостьовій зоні'],
+  b_curtain:['Штори','у v2 — тюль у підлогу + штори грейж на прихованому карнизі'], b_lamp:['Бра-«молекула»','у v2 — два теплі бра + LED-контур і точкові'], wardrobe:['Гардероб (двері-невидимка у скосі)','лишається як є']};
+
+// ---------- СВІТЛО ----------
+scene.add(new THREE.HemisphereLight('#fffaf2','#b79a7c',1.35)); scene.add(new THREE.AmbientLight('#fff6ea',0.35));
+const sun=new THREE.DirectionalLight('#fff4e6',2.0); sun.position.set(-3,6.5,5.5); sun.target.position.set(3,0,1.8); scene.add(sun.target);
+sun.castShadow=true; sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-6,right:6,top:6,bottom:-6,near:0.5,far:25}); sun.shadow.bias=-0.0004; scene.add(sun);
+const wl=new THREE.DirectionalLight('#eaf3ff',0.8); wl.position.set(-4,1.8,1.8); wl.target.position.set(3,0.5,1.8); scene.add(wl); scene.add(wl.target);
+
+// ---------- ПІДПИСИ ----------
+const LABS_A = [['Вікно на всю стіну',0,1.8,2.75,ZC.window],['Вхід',6.21,0.8,2.2,'#b8475a'],['Гардероб у скосі',...diagPt(0.45),2.45,'#a87b3c'],
+ ['Ліжко-будиночок 90×200',1.74,2.6,1.95,ZC.kid],['Парта «на вріст»',0.33,2.55,1.25,ZC.kid],['KALLAX — іграшки',0.25,0.85,1.15,ZC.kid],['Полиці + сітка для іграшок',0.9,3.5,2.0,ZC.kid],
+ ['Рейкова перегородка',2.32,2.6,2.75,ZC.slats],['Рейкова ТВ-стіна',2.9,0.0,2.35,ZC.slats],['Комод 180 см',1.9,0.3,0.7,ZC.storage],['Диван-ліжко для гостей',3.33,3.1,1.1,ZC.guest],
+ ['Столик Ø60 + килим',3.4,1.9,0.7,ZC.guest],['Дзеркало з LED',...diagPt(0.13),2.3,ZC.storage],['LED-контур стелі',5.0,0.1,2.62,ZC.light]];
+const LABS_B = [['Вікно',0,1.8,2.75,ZC.window],['Вхід',6.21,0.8,2.2,'#b8475a'],['Гардероб',...diagPt(0.45),2.45,'#a87b3c'],['Старий диван',2.0,3.1,1.1,'#888'],['Куби з іграшками під ТВ',1.7,0.2,1.5,'#888'],['Столик',0.45,1.5,0.8,'#888']];
+const labBox=document.getElementById('labels'); let showLab=true, mode='after';
+function drawLabels(){ labBox.innerHTML=''; if(!showLab) return; const W=renderer.domElement.clientWidth, H=renderer.domElement.clientHeight;
+  for (const [t,x,y,z,c] of (mode==='after'?LABS_A:LABS_B)){ const v=new THREE.Vector3(x,z,y).project(cam); if (v.z>1||Math.abs(v.x)>1.05||Math.abs(v.y)>1.05) continue;
+    const d=document.createElement('div'); d.className='lb'; d.style.setProperty('--c',c); d.style.left=((v.x+1)/2*W)+'px'; d.style.top=((1-v.y)/2*H)+'px'; d.style.fontSize=FLY?'22px':''; d.textContent=t; labBox.appendChild(d); } }
+
+// ---------- ВИДИ ----------
+const VIEWS = { iso:{p:[8.2,7.4,9.2],t:[3.0,0.6,1.6],ceil:false}, top:{p:[3.1,11.0,2.4],t:[3.1,0,1.78],ceil:false},
+  entry:{p:[6.05,1.6,0.75],t:[0.3,1.05,2.3],ceil:true}, window:{p:[0.45,1.55,0.7],t:[5.6,0.95,2.0],ceil:true} };
+let view='iso', anim=null;
+function setView(v, instant){ view=v; const V=VIEWS[v]; ceil.visible=V.ceil;
+  const from={p:cam.position.clone(),t:ctr.target.clone()}, to={p:new THREE.Vector3(...V.p),t:new THREE.Vector3(...V.t)};
+    if (instant){ cam.position.copy(to.p); ctr.target.copy(to.t); ctr.update(); return; }
+  anim={from,to,t0:performance.now()};
+  document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v)); }
+document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>setView(b.dataset.v));
+function setMode(m){ mode=m; AFTER.visible=m==='after'; BEFORE.visible=m==='before'; wallMatA.color.set(m==='after'?'#e9e2d7':'#dddad3');
+  document.getElementById('bAfter').classList.toggle('on',m==='after'); document.getElementById('bBefore').classList.toggle('on',m==='before'); hideInfo(); }
+document.getElementById('bAfter').onclick=()=>setMode('after'); document.getElementById('bBefore').onclick=()=>setMode('before');
+document.getElementById('bLab').onclick=e=>{ showLab=!showLab; e.target.classList.toggle('on',showLab); };
+
+// ---------- ТАП → ЦІНА ----------
+const info=document.getElementById('info'); function hideInfo(){ info.style.display='none'; }
+const ray=new THREE.Raycaster(), ndc=new THREE.Vector2(); let down=null;
+renderer.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+renderer.domElement.addEventListener('pointerup',e=>{ if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>8) return;
+  const r=renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1); ray.setFromCamera(ndc,cam);
+  const roots=[mode==='after'?AFTER:BEFORE, scene.getObjectByProperty('userData',undefined)].filter(Boolean);
+  const hits=ray.intersectObjects([mode==='after'?AFTER:BEFORE, ...scene.children.filter(o=>o.userData&&o.userData.key==='wardrobe')],true).filter(h=>h.object.visible);
+  let key=null; for (const h of hits){ let o=h.object; while(o&&!o.userData.key) o=o.parent; if(o){ key=o.userData.key; break; } }
+  if(!key){ hideInfo(); return; } showInfo(key); });
+function showInfo(key){
+  if (mode==='before' || key==='wardrobe'){ const b=BEFORE_INFO[key]; if(!b){hideInfo();return;} info.innerHTML=`<span class="x" onclick="this.parentNode.style.display='none'">×</span><b>${b[0]}</b><br>${b[1]}`; info.style.display='block'; return; }
+  const p=P[key]; if(!p){ hideInfo(); return; }
+  const rows=p.items.map(i=>`• ${i.name}<br>&nbsp;&nbsp;<a href="${i.url}" target="_blank">${i.model}</a> — ${i.store.split(' (')[0]}: <b>${fmt(i.price)} грн</b>`).join('<br>');
+  info.innerHTML=`<span class="x" onclick="this.parentNode.style.display='none'">×</span><span class="z" style="background:${p.color}">${p.zone}</span><br><b>${p.title}</b>
+   <div class="p">${fmt(p.mid)} грн <span style="font-size:12px;color:#8a7a7a;font-weight:600">(економ ${fmt(p.econ)} · комфорт ${fmt(p.comf)})</span></div>${rows}`;
+  info.style.display='block'; }
+
+// ---------- ЦИКЛ / ПРОЛІТ ----------
+const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+function hideNearWalls(){ const c=cam.position; const inside=c.y<Hh&&c.x>0&&c.x<6.21&&c.z>0&&c.z<3.57;
+  for (const w of walls){ const [nx,ny]=w.userData.n, [cx,cy]=w.userData.c; const out=(c.x-cx)*nx+(c.z-cy)*ny; w.visible = inside || out<0.2 || view==='top' ? true : false; if(view==='top') w.visible=true; } }
+// шлях прольоту: [час, позиція, ціль, підпис, режим]
+const FLYK=[[0,[9.5,7.0,-2.5],[3.1,0.4,1.8],'Кімната за LiDAR-скануванням: 6,21 × 3,57 м','before'],[4.0,[8.2,7.4,9.2],[3.0,0.6,1.6],'Як є зараз','before'],
+ [5.6,[8.2,7.4,9.2],[3.0,0.6,1.6],'Після: рейкова перегородка ділить кімнату на 2 зони','after'],[9,[-2.8,6.8,7.8],[2.6,0.6,1.8],'Біля вікна — ліжко-будиночок і парта','after'],
+ [13,[3.1,11.0,2.6],[3.1,0,1.79],'Вид зверху: проходи ≥ 60 см','after'],[17,[6.05,1.6,0.75],[0.3,1.05,2.3],'Від входу: гостьовий диван перед рейками','after'],
+ [21,[3.2,1.55,0.9],[0.9,0.8,2.9],'Крізь рейки — дитяча зона','after'],[25,[0.45,1.55,0.7],[5.6,0.95,2.0],'Від вікна: ТВ-стіна, дзеркало з LED, гардероб','after'],[28,[0.45,1.55,0.7],[5.6,0.95,2.0],'','after']];
+function flyAt(t){ let i=0; while(i<FLYK.length-2&&t>FLYK[i+1][0]) i++; const A=FLYK[i],B=FLYK[i+1]; const u=ease(Math.min(1,Math.max(0,(t-A[0])/(B[0]-A[0]))));
+  const lerp=(a,b)=>a.map((v,j)=>v+(b[j]-v)*u); cam.position.set(...lerp(A[1],B[1])); ctr.target.set(...lerp(A[2],B[2])); cam.lookAt(ctr.target);
+  const m = t<4.8?'before':'after'; if (m!==mode) setMode(m); view = (t>12&&t<15)?'top':'x'; ceil.visible = cam.position.y<Hh;
+  document.getElementById('cap').textContent = (t-A[0]<(B[0]-A[0])*0.9||i===FLYK.length-2)?A[3]:B[3]; }
+function frame(){ if (anim){ const u=ease(Math.min(1,(performance.now()-anim.t0)/900)); cam.position.lerpVectors(anim.from.p,anim.to.p,u); ctr.target.lerpVectors(anim.from.t,anim.to.t,u); if(u>=1) anim=null; }
+  ctr.update(); ceil.visible = VIEWS[view]?.ceil && cam.position.y<Hh; hideNearWalls(); renderer.render(scene,cam); drawLabels(); requestAnimationFrame(frame); }
+if (FLY){ showLab=true; setMode('before'); window.__render=t=>{ flyAt(t); hideNearWalls(); renderer.render(scene,cam); drawLabels(); }; window.__ready=true; }
+else { setView('iso',true); setMode(q.get('m')==='before'?'before':'after'); frame(); }
+</script></body></html>
